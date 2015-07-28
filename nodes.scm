@@ -25,19 +25,6 @@
 (define (make-node-uri root-url)
   (uri-reference (string-append root-url "/pdb/query/v4/nodes")))
 
-(define (vassoc k vec-pairs)
-  (let ((idx (vector-index (lambda (pair)
-                             (string= k (car pair))) vec-pairs)))
-    (when idx
-      (vector-ref vec-pairs idx))))
-
-(define (string-alist->hash-table string-alist)
-  (vector-fold (lambda (index hashtable pair)
-                 (hash-table-set! hashtable (car pair) (cdr pair))
-                 hashtable)
-               (make-hash-table string=? string-hash)
-               string-alist))
-
 (define (alist->ht alist)
   (alist->hash-table alist eq? symbol-hash))
 
@@ -92,42 +79,60 @@
 (define (output->console opts)
   (lambda ()
     (cond
-     ((assoc 'tab opts)
-      (tabular-output (vector->list (read-json))))
      ((assoc 'json opts)
       (print (read-string)))
-     (else (print (read-string))))))
+     (else
+      (tabular-output (vector->list (read-json)))))))
 
-(define (query-nodes conn-info query)
-  (let ((uri (make-node-uri (hash-table-ref conn-info 'root_url))))
+(define (query-nodes conn-info cmd-opts)
+  (let ((uri (make-node-uri (hash-table-ref conn-info 'root_url)))
+        (query (cdr (assoc 'query cmd-opts))))
     (with-input-from-request (make-request uri: uri
                                            conn-factory: (ssl-conn-factory (hash-table-ref conn-info 'ca)
                                                                            (hash-table-ref conn-info 'cert)
                                                                            (hash-table-ref conn-info 'key))
                                            method: 'GET)
-                             #f
-                             (output->console query))))
+                             (if query
+                                 `((query . ,query))
+                                 #f)
+                             (output->console cmd-opts))))
 
 (define opts
-  (list (args:make-option (q query)
-                          (optional: "QUERY")
-                          "PuppetDB query string")
-        (args:make-option (f query-file)
-                          (optional: "FILE")
-                          "Path to file containing a PuppetDB query")
-        (args:make-option (a alias)
-                          (optional: "ALIAS")
-                          "Alias for the PuppetDB instance in ~/.pdbrc, uses \"default\" if not specified")
-        (args:make-option (t tab)
-                          #:none
-                          "Tabular output format")
-        (args:make-option (j json)
-                          #:none
-                          "JSON output format")
-        (args:make-option (h help)
-                          #:none
-                          "Display this text"
-                          (usage))))
+  (list
+   (args:make-option (h host)
+                     (required: "HOST")
+                     "Hostname of the PuppetDB instance to query")
+   (args:make-option (p port)
+                     (required: "PORT")
+                     "Port the PuppetDB host is listening on")
+   (args:make-option (ca)
+                     (required: "CA")
+                     "Path to the Puppet Master's CA Cert")
+   (args:make-option (cert)
+                     (required: "CERT")
+                     "Path to a certificate, used by the PuppetDB instance to authenticate this client, must be used with --key")
+   (args:make-option (key)
+                     (required: "KEY")
+                     "Path to the private key associated with the --cert parameter")
+   (args:make-option (q query)
+                     (required: "QUERY")
+                     "PuppetDB query string")
+   (args:make-option (f query-file)
+                     (optional: "FILE")
+                     "Path to file containing a PuppetDB query")
+   (args:make-option (a alias)
+                     (optional: "ALIAS")
+                     "Alias for the PuppetDB instance in ~/.pdbrc, uses \"default\" if not specified")
+   (args:make-option (t tab)
+                     #:none
+                     "Tabular output format")
+   (args:make-option (j json)
+                     #:none
+                     "JSON output format")
+   (args:make-option (h help)
+                     #:none
+                     "Display this text"
+                     (usage))))
 
 (define (usage)
  (with-output-to-port (current-error-port)
@@ -137,7 +142,6 @@
      (newline)
      (print (args:usage opts))))
  (exit 1))
-
 
 (define (get-default-conn-info)
   (let* ((config (user-config))
