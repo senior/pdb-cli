@@ -6,6 +6,7 @@
 (use medea)
 (use pathname-expand)
 (use openssl)
+(use section-combinators)
 
 (define (user-config)
   (with-input-from-file (pathname-expand "~/.pdbrc") read-json))
@@ -53,6 +54,12 @@
  (alist-update 'object
                alist->ht
                (json-parsers)))
+
+(define node-column-order
+  '(certname deactivated expired catalog_timestamp facts_timestamp report_timestamp catalog_environment facts_environment report_environment))
+
+(define (order-columns defined-order result-columns)
+  (filter (right-section memq result-columns) defined-order))
 
 (define (find-max-col-lengths rows)
   (fold max-col-length
