@@ -1,0 +1,37 @@
+Index: intarweb.scm
+===================================================================
+--- intarweb.scm	(revision 32629)
++++ intarweb.scm	(working copy)
+@@ -42,12 +42,12 @@
+    header-parsers header-unparsers unparse-header unparse-headers read-headers
+    safe-methods safe? idempotent-methods idempotent? keep-alive? response-class
+    etag=? etag=-weakly? etag-matches? etag-matches-weakly?
+-
++
+    make-request request? request-major request-major-set!
+    request-minor request-minor-set!
+    request-method request-method-set! request-uri request-uri-set!
+    request-headers request-headers-set! request-port request-port-set!
+-   update-request set-request! request-has-message-body?
++   request-conn-factory update-request set-request! request-has-message-body?
+
+    request-parsers read-request request-unparsers write-request
+    finish-request-body http-0.9-request-parser http-1.x-request-parser
+@@ -555,7 +555,7 @@
+            (make-property-condition 'exn 'message msg 'arguments args))))
+
+ (defstruct request
+-  (method 'GET) uri (major 1) (minor 1) (headers (make-headers '())) port)
++    (method 'GET) uri (major 1) (minor 1) (headers (make-headers '())) port (conn-factory #f))
+
+ ;; Perhaps we should have header parsers indexed by version or
+ ;; something like that, so you can define the maximum version. Useful
+@@ -787,7 +787,7 @@
+ ;; List of HTTP status codes based on:
+ ;; http://www.iana.org/assignments/http-status-codes/http-status-codes.xml
+ (define http-status-codes
+-  (make-parameter
++  (make-parameter
+    `((continue . (100 . "Continue"))
+      (switching-protocols . (101 . "Switching Protocols"))
+      (processing . (102 . "Processing"))

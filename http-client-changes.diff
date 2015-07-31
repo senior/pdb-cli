@@ -1,0 +1,32 @@
+Index: http-client.scm
+===================================================================
+--- http-client.scm	(revision 32629)
++++ http-client.scm	(working copy)
+@@ -183,15 +182,15 @@
+ (define ssl-connect
+   (dynamic-import 'openssl 'ssl-connect (lambda (h p) (values #f #f))))
+
+-(define (ensure-connection! uri)
++(define (ensure-connection! uri conn-factory)
+   (or (get-connection uri)
+       (let* ((proxy ((determine-proxy) uri))
+              (remote-end (or proxy uri)))
+        (receive (in out)
+          (case (uri-scheme remote-end)
+-           ((#f http) (tcp-connect (uri-host remote-end) (uri-port remote-end)))
++           ((#f http) ((or conn-factory tcp-connect) (uri-host remote-end) (uri-port remote-end)))
+            ((https) (receive (in out)
+-                        (ssl-connect (uri-host remote-end)
++                        ((or conn-factory ssl-connect) (uri-host remote-end)
+                                      (uri-port remote-end))
+                       (if (and in out)  ; Ugly, but necessary
+                           (values in out)
+@@ -510,7 +509,7 @@
+              (redirects 0)
+              (req req))
+     (condition-case
+-        (let* ((con (ensure-connection! (request-uri req)))
++        (let* ((con (ensure-connection! (request-uri req) (request-conn-factory req)))
+                (req (add-headers (update-request
+                                   req port: (http-connection-outport con))))
+                ;; No outgoing URIs should ever contain credentials or fragments
