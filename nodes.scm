@@ -11,7 +11,7 @@
 (define (user-config)
   (with-input-from-file (pathname-expand "~/.pdbrc") read-json))
 
-(define (ssl-conn-factory ca-cert-path cert-path key-path)
+(define (make-ssl-conn ca-cert-path cert-path key-path)
   (lambda (uri-host uri-port)
     (let ((ssl-ctx (ssl-make-client-context 'tls)))
       (ssl-load-certificate-chain! ssl-ctx cert-path)
@@ -22,6 +22,22 @@
       (ssl-connect uri-host
                    uri-port
                    ssl-ctx))))
+
+(define (mutual-auth-connector conn-fn)
+  (lambda (uri proxy)
+    (let ((remote-end (or proxy uri)))
+      (case (uri-scheme remote-end)
+        ((#f http) (tcp-connect (uri-host remote-end) (uri-port remote-end)))
+        ((https) (receive (in out)
+                     (conn-fn (uri-host remote-end)
+                              (uri-port remote-end))
+                   (values in out)))
+        (else (http-client-error 'ensure-connection!
+                                 "Unknown URI scheme"
+                                 (list (uri-scheme remote-end))
+                                 'unsupported-uri-scheme
+                                 'uri-scheme (uri-scheme remote-end)
+                                 'request-uri uri 'proxy proxy))))))
 
 (define (make-node-uri root-url)
   (uri-reference (string-append root-url "/pdb/query/v4/nodes")))
@@ -94,10 +110,13 @@
 (define (query-nodes conn-info cmd-opts)
   (let ((uri (make-node-uri (hash-table-ref conn-info 'root_url)))
         (query (cdr (assoc 'query cmd-opts))))
+    (server-connector
+     (mutual-auth-connector
+      (make-ssl-conn (hash-table-ref conn-info 'ca)
+                     (hash-table-ref conn-info 'cert)
+                     (hash-table-ref conn-info 'key))))
     (with-input-from-request (make-request uri: uri
-                                           conn-factory: (ssl-conn-factory (hash-table-ref conn-info 'ca)
-                                                                           (hash-table-ref conn-info 'cert)
-                                                                           (hash-table-ref conn-info 'key))
+                                           conn-factory:
                                            method: 'GET)
                              (if query
                                  `((query . ,query))
