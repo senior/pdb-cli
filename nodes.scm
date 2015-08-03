@@ -27,10 +27,8 @@
   (lambda (uri proxy)
     (let ((remote-end (or proxy uri)))
       (if (eq? 'https (uri-scheme remote-end))
-          (receive (in out)
-              (conn-fn (uri-host remote-end)
-                       (uri-port remote-end))
-            (values in out))
+          (conn-fn (uri-host remote-end)
+                   (uri-port remote-end))
           (default-server-connector uri proxy)))))
 
 (define (make-node-uri root-url)
