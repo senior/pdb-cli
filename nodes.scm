@@ -26,18 +26,12 @@
 (define (mutual-auth-connector conn-fn)
   (lambda (uri proxy)
     (let ((remote-end (or proxy uri)))
-      (case (uri-scheme remote-end)
-        ((#f http) (tcp-connect (uri-host remote-end) (uri-port remote-end)))
-        ((https) (receive (in out)
-                     (conn-fn (uri-host remote-end)
-                              (uri-port remote-end))
-                   (values in out)))
-        (else (http-client-error 'ensure-connection!
-                                 "Unknown URI scheme"
-                                 (list (uri-scheme remote-end))
-                                 'unsupported-uri-scheme
-                                 'uri-scheme (uri-scheme remote-end)
-                                 'request-uri uri 'proxy proxy))))))
+      (if (eq? 'https (uri-scheme remote-end))
+          (receive (in out)
+              (conn-fn (uri-host remote-end)
+                       (uri-port remote-end))
+            (values in out))
+          (default-server-connector uri proxy)))))
 
 (define (make-node-uri root-url)
   (uri-reference (string-append root-url "/pdb/query/v4/nodes")))
