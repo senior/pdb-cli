@@ -11,24 +11,25 @@
 (define (user-config)
   (with-input-from-file (pathname-expand "~/.pdbrc") read-json))
 
-(define (make-ssl-conn ca-cert-path cert-path key-path)
-  (lambda (uri-host uri-port)
-    (let ((ssl-ctx (ssl-make-client-context 'tls)))
-      (ssl-load-certificate-chain! ssl-ctx cert-path)
-      (ssl-load-private-key! ssl-ctx key-path)
-      (ssl-load-suggested-certificate-authorities! ssl-ctx ca-cert-path)
-      (ssl-load-verify-root-certificates! ssl-ctx ca-cert-path)
-      (ssl-set-verify! ssl-ctx #t)
-      (ssl-connect uri-host
-                   uri-port
-                   ssl-ctx))))
+(define (make-ssl-context/client-cert ca-cert-path cert-path key-path)
+  (let ((ssl-ctx (ssl-make-client-context 'tls)))
 
-(define (mutual-auth-connector conn-fn)
+    (ssl-load-suggested-certificate-authorities! ssl-ctx ca-cert-path)
+    (ssl-load-verify-root-certificates! ssl-ctx ca-cert-path)
+    (ssl-set-verify! ssl-ctx #t)
+
+    (ssl-load-certificate-chain! ssl-ctx cert-path)
+    (ssl-load-private-key! ssl-ctx key-path)
+
+    ssl-ctx))
+
+(define (make-ssl-server-connector/context ssl-ctx)
   (lambda (uri proxy)
     (let ((remote-end (or proxy uri)))
       (if (eq? 'https (uri-scheme remote-end))
-          (conn-fn (uri-host remote-end)
-                   (uri-port remote-end))
+          (ssl-connect (uri-host remote-end)
+                       (uri-port remote-end)
+                       ssl-ctx)
           (default-server-connector uri proxy)))))
 
 (define (make-node-uri root-url)
@@ -101,12 +102,12 @@
 
 (define (query-nodes conn-info cmd-opts)
   (let ((uri (make-node-uri (hash-table-ref conn-info 'root_url)))
-        (query (cdr (assoc 'query cmd-opts))))
-    (server-connector
-     (mutual-auth-connector
-      (make-ssl-conn (hash-table-ref conn-info 'ca)
-                     (hash-table-ref conn-info 'cert)
-                     (hash-table-ref conn-info 'key))))
+        (query (cdr (assoc 'query cmd-opts)))
+        (ssl-ctx (make-ssl-context/client-cert (hash-table-ref conn-info 'ca)
+                                                   (hash-table-ref conn-info 'cert)
+                                                   (hash-table-ref conn-info 'key))))
+
+    (server-connector (make-ssl-server-connector/context ssl-ctx))
     (with-input-from-request (make-request uri: uri
                                            conn-factory:
                                            method: 'GET)
