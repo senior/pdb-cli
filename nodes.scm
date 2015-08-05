@@ -49,7 +49,7 @@
 (define (max-col-length row max-alist)
   (map (lambda (max-pair)
          (let ((col (car max-pair)))
-           `(,col . ,(max (cdr max-pair)
+           (cons col (max (cdr max-pair)
                           (column-length row col)))))
        max-alist))
 
@@ -68,18 +68,18 @@
   '(certname deactivated expired catalog_timestamp facts_timestamp report_timestamp catalog_environment facts_environment report_environment))
 
 (define (order-columns defined-order result-columns)
-  (filter (right-section memq result-columns) defined-order))
+  (filter (left-section hash-table-exists? result-columns) defined-order))
 
 (define (find-max-col-lengths rows)
   (fold max-col-length
         (map (lambda (col)
-               `(,col . 0))
-             (hash-table-keys (car rows)))
+               (cons col 0))
+             (order-columns node-column-order (car rows)))
         rows))
 
 (define (header-row rows)
   (alist->ht (map (lambda (col-name)
-                    `(,col-name . ,(symbol->string col-name)))
+                    (cons col-name (symbol->string col-name)))
                   (hash-table-keys (car rows)))))
 
 (define (tabular-output rows)
