@@ -44,3 +44,18 @@
                     (deactivated . 9)
                     (expired . 9))
                   (find-max-col-lengths test-rows)))
+
+(test "foo,bar,baz"
+      (emit-csv-row '("foo" "bar" "baz")))
+
+(test "foo,'bar',baz"
+      (emit-csv-row '("foo" "'bar'" "baz")))
+
+(test "foo,\"b,a,r\",baz"
+      (emit-csv-row '("foo" "b,a,r" "baz")))
+
+(test "foo,\"b\"\"a\"\"r\",baz"
+      (emit-csv-row '("foo" "b\"a\"r" "baz")))
+
+(test "foo,\"b\na\nr\",baz"
+      (emit-csv-row '("foo" "b\na\nr" "baz")))

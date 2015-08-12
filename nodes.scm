@@ -7,6 +7,7 @@
 (use pathname-expand)
 (use openssl)
 (use section-combinators)
+(use srfi-13)
 
 (define (user-config)
   (with-input-from-file (pathname-expand "~/.pdbrc") read-json))
@@ -53,10 +54,13 @@
                           (column-length row col)))))
        max-alist))
 
+(define (stringify s)
+  (if (symbol? s)
+      (symbol->string s)
+      s))
+
 (define (pad-column col max-width)
-  (string-append " "  (if (symbol? col)
-                          (symbol->string col)
-                          col)
+  (string-append " "  (stringify col)
                  (make-string (- max-width (safe-string-length col)) #\ )))
 
 (json-parsers
@@ -92,21 +96,86 @@
                                       (cdr col-name-and-length)))
                         max-lengths)))))
 
+(define (needs-quotes? s)
+  (or (string-contains s ",")
+      (string-contains s "\"")
+      (string-contains s "\n")))
+
+(define (quote-cell s)
+  (if (needs-quotes? s)
+      (string-append "\"" s "\"")
+      s))
+
+(define (replace-with-substring s search-char replace-string)
+  (string-fold (lambda (c acc)
+                 (if (char=? c search-char)
+                     (string-append acc replace-string)
+                     (string-append acc (string c))))
+               "" s))
+
+(define (escape-quotes s)
+  (if (string-contains s "\"")
+      (replace-with-substring s #\" "\"\"")
+      s))
+
+(define (escape-cell cell)
+  (quote-cell (escape-quotes cell)))
+
+(define (emit-csv-row row)
+  (string-join (map escape-cell row) ","))
+
+(define (csv-output rows)
+  (let* ((header (header-row rows))
+         (rows (cons header rows))
+         (column-order (filter (lambda (column)
+                                 (hash-table-exists? header column))
+                               node-column-order)))
+
+    (do ((rows rows (cdr rows)))
+        ((null? rows) #t)
+      (print
+       (emit-csv-row
+        (map (lambda (column)
+               (stringify (hash-table-ref (car rows) column))) column-order))))))
+
 (define (output->console opts)
   (lambda ()
     (cond
      ((assoc 'json opts)
       (print (read-string)))
+     ((assoc 'csv opts)
+      (csv-output (vector->list (read-json))))
      (else
       (tabular-output (vector->list (read-json)))))))
 
+(define (acdr k alist)
+  (let ((val (assoc k alist)))
+    (if val
+        (cdr val)
+        #f)))
+
+(define (read-query-file filename)
+  (call-with-input-file filename
+    (lambda (file-input-port)
+      (call-with-output-string
+       (lambda (string-output-port)
+         (copy-port file-input-port string-output-port))))))
+
+(define (query cmd-opts)
+  (cond
+   ((assoc 'query cmd-opts)
+    (acdr 'query cmd-opts))
+   ((assoc 'query-file cmd-opts)
+    (read-query-file (acdr 'query-file cmd-opts)))
+   (else
+    #f)))
+
 (define (query-nodes conn-info cmd-opts)
   (let ((uri (make-node-uri (hash-table-ref conn-info 'root_url)))
-        (query (cdr (assoc 'query cmd-opts)))
+        (query (query cmd-opts))
         (ssl-ctx (make-ssl-context/client-cert (hash-table-ref conn-info 'ca)
                                                    (hash-table-ref conn-info 'cert)
                                                    (hash-table-ref conn-info 'key))))
-
     (server-connector (make-ssl-server-connector/context ssl-ctx))
     (with-input-from-request (make-request uri: uri
                                            conn-factory:
@@ -137,7 +206,7 @@
                      (required: "QUERY")
                      "PuppetDB query string")
    (args:make-option (f query-file)
-                     (optional: "FILE")
+                     (required: "FILE")
                      "Path to file containing a PuppetDB query")
    (args:make-option (a alias)
                      (optional: "ALIAS")
@@ -148,6 +217,9 @@
    (args:make-option (j json)
                      #:none
                      "JSON output format")
+   (args:make-option (c csv)
+                     #:none
+                     "CSV output format")
    (args:make-option (h help)
                      #:none
                      "Display this text"
