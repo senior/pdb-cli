@@ -14,14 +14,10 @@
         (begin (write-byte byte output-port)
                (siphon-input input-port output-port)))))
 
-(define (export-uri root-uri)
-  (uri-reference
-   (string-append root-uri "/pdb/admin/v1/archive")))
-
 (define (export-call conn-info cmd-args)
   (let ((filename (acdr 'outfile cmd-args)))
     (maybe-set-ssl-context conn-info)
-    (with-input-from-request (export-uri (hash-table-ref conn-info 'root_url))
+    (with-input-from-request (archive-uri (hash-table-ref conn-info 'root_url))
                              #f
                              (lambda ()
                                (with-output-to-file filename

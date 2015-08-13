@@ -55,3 +55,7 @@
                       (hash-table-ref config 'default_host)))
          (host-list (hash-table-ref config 'hosts)))
     (hash-table-ref host-list (string->symbol default))))
+
+(define (archive-uri root-uri)
+  (uri-reference
+   (string-append root-uri "/pdb/admin/v1/archive")))
