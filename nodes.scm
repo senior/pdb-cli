@@ -107,13 +107,16 @@
 
 (define (output->console opts)
   (lambda ()
-    (cond
-     ((assoc 'json opts)
-      (print (read-string)))
-     ((assoc 'csv opts)
-      (csv-output (vector->list (read-json))))
-     (else
-      (tabular-output (vector->list (read-json)))))))
+    (if (assoc 'json opts)
+        (print (read-string))
+        (let ((result (vector->list (read-json))))
+          (cond
+           ((not-pair? result)
+            (print "No rows returned"))
+           ((assoc 'csv opts)
+            (csv-output result))
+           (else
+            (tabular-output result)))))))
 
 (define (read-query-file filename)
   (call-with-input-file filename
