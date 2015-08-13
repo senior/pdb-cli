@@ -5,6 +5,8 @@
 (use intarweb uri-common)
 (use json)
 
+(include "common")
+
 (define (siphon-input input-port output-port)
   (let ((byte (read-byte input-port)))
     (if (eq? #!eof byte)
@@ -12,18 +14,27 @@
         (begin (write-byte byte output-port)
                (siphon-input input-port output-port)))))
 
-(define (export-call filename)
-  (with-input-from-request "http://localhost:8080/pdb/admin/v1/archive" #f
-                           (lambda ()
-                             (with-output-to-file filename
-                               (lambda ()
-                                 (siphon-input (current-input-port) (current-output-port)))))))
+(define (export-uri root-uri)
+  (uri-reference
+   (string-append root-uri "/pdb/admin/v1/archive")))
+
+(define (export-call conn-info cmd-args)
+  (let ((filename (acdr 'outfile cmd-args)))
+    (maybe-set-ssl-context conn-info)
+    (with-input-from-request (export-uri (hash-table-ref conn-info 'root_url))
+                             #f
+                             (lambda ()
+                               (with-output-to-file filename
+                                 (lambda ()
+                                   (siphon-input (current-input-port) (current-output-port))))))))
 
 (define opts
   (list (args:make-option (o outfile)
-                          #:required
-                          "File name for the archive to export"
-                          (export-call arg))
+                          (required: "FILE")
+                          "File name for the archive to export")
+        (args:make-option (a alias)
+                          (required: "ALIAS")
+                          "Alias for the PuppetDB instance in ~/.pdbrc, uses \"default\" if not specified")
         (args:make-option (h help)
                           #:none
                           "Display this text"
@@ -39,4 +50,5 @@
  (exit 1))
 
 (define (main args)
-  (args:parse args opts))
+  (let ((cmd-args (args:parse args opts)))
+    (export-call (get-default-conn-info cmd-args) cmd-args)))
