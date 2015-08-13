@@ -33,9 +33,6 @@
                        ssl-ctx)
           (default-server-connector uri proxy)))))
 
-(define (make-node-uri root-url)
-  (uri-reference (string-append root-url "/pdb/query/v4/nodes")))
-
 (define (alist->ht alist)
   (alist->hash-table alist eq? symbol-hash))
 
@@ -165,51 +162,53 @@
   (cond
    ((assoc 'query cmd-opts)
     (acdr 'query cmd-opts))
+   ((assoc 'pql cmd-opts)
+    (acdr 'pql cmd-opts))
    ((assoc 'query-file cmd-opts)
     (read-query-file (acdr 'query-file cmd-opts)))
    (else
     #f)))
 
+(define (maybe-set-ssl-context conn-info)
+  (when (eq? 'https (uri-scheme (uri-reference (hash-table-ref conn-info 'root_url))))
+    (let ((ssl-ctx (make-ssl-context/client-cert (hash-table-ref conn-info 'ca)
+                                                 (hash-table-ref conn-info 'cert)
+                                                 (hash-table-ref conn-info 'key))))
+      (server-connector (make-ssl-server-connector/context ssl-ctx)))))
+
+(define (query-uri root-uri pql?)
+  (uri-reference
+   (string-append root-uri
+                  (if pql?
+                      "/pdb/query/v4/"
+                      "/pdb/query/v4/nodes"))))
+
 (define (query-nodes conn-info cmd-opts)
-  (let ((uri (make-node-uri (hash-table-ref conn-info 'root_url)))
-        (query (query cmd-opts))
-        (ssl-ctx (make-ssl-context/client-cert (hash-table-ref conn-info 'ca)
-                                                   (hash-table-ref conn-info 'cert)
-                                                   (hash-table-ref conn-info 'key))))
-    (server-connector (make-ssl-server-connector/context ssl-ctx))
+  (let ((uri (query-uri (hash-table-ref conn-info 'root_url)
+                        (assoc 'pql cmd-opts)))
+        (query (query cmd-opts)))
+    (maybe-set-ssl-context conn-info)
     (with-input-from-request (make-request uri: uri
                                            conn-factory:
                                            method: 'GET)
                              (if query
-                                 `((query . ,query))
+                                 (list (cons 'query query))
                                  #f)
                              (output->console cmd-opts))))
 
 (define opts
   (list
-   (args:make-option (h host)
-                     (required: "HOST")
-                     "Hostname of the PuppetDB instance to query")
-   (args:make-option (p port)
-                     (required: "PORT")
-                     "Port the PuppetDB host is listening on")
-   (args:make-option (ca)
-                     (required: "CA")
-                     "Path to the Puppet Master's CA Cert")
-   (args:make-option (cert)
-                     (required: "CERT")
-                     "Path to a certificate, used by the PuppetDB instance to authenticate this client, must be used with --key")
-   (args:make-option (key)
-                     (required: "KEY")
-                     "Path to the private key associated with the --cert parameter")
    (args:make-option (q query)
                      (required: "QUERY")
                      "PuppetDB query string")
+   (args:make-option (p pql)
+                     (required: "PQL QUERY")
+                     "PuppetDB Query Language string")
    (args:make-option (f query-file)
                      (required: "FILE")
                      "Path to file containing a PuppetDB query")
    (args:make-option (a alias)
-                     (optional: "ALIAS")
+                     (required: "ALIAS")
                      "Alias for the PuppetDB instance in ~/.pdbrc, uses \"default\" if not specified")
    (args:make-option (t tab)
                      #:none
@@ -234,12 +233,14 @@
      (print (args:usage opts))))
  (exit 1))
 
-(define (get-default-conn-info)
+(define (get-default-conn-info args)
   (let* ((config (user-config))
-         (default (hash-table-ref config 'default_host))
+         (default (if (assoc 'alias args)
+                      (acdr 'alias args)
+                      (hash-table-ref config 'default_host)))
          (host-list (hash-table-ref config 'hosts)))
     (hash-table-ref host-list (string->symbol default))))
 
 (define (main args)
   (let ((more-args (args:parse args opts)))
-    (query-nodes (get-default-conn-info) more-args)))
+    (query-nodes (get-default-conn-info more-args) more-args)))
