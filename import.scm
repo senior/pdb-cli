@@ -1,11 +1,4 @@
-(use args)
-(use data-structures)
-(use ports)
-(use http-client)
-(use intarweb uri-common)
-(use json)
-(use snowtar)
-(use z3)
+(use args data-structures ports http-client intarweb uri-common medea snowtar z3)
 
 (include "common")
 
@@ -21,7 +14,7 @@
                            read-string))
 
 (define (extract-command-versions file)
-  (let ((tr (car (filter command-metadata? (tar-unpack-genport   (z3:open-compressed-input-file file) )))))
+  (let ((tr (car (filter command-metadata? (tar-unpack-genport (z3:open-compressed-input-file file) )))))
     (with-input-from-string (blob->string (u8vector->blob (tar-rec-content tr)))
       (lambda ()
         (with-output-to-string
@@ -50,7 +43,6 @@
 (define (usage)
  (with-output-to-port (current-error-port)
    (lambda ()
-     (print argv)
      (print "Usage: " (car (argv)) " [options...]")
      (newline)
      (print (args:usage opts))))

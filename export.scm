@@ -1,9 +1,4 @@
-(use args)
-(use data-structures)
-(use ports)
-(use http-client)
-(use intarweb uri-common)
-(use json)
+(use args data-structures ports http-client intarweb uri-common medea)
 
 (include "common")
 
@@ -39,7 +34,6 @@
 (define (usage)
  (with-output-to-port (current-error-port)
    (lambda ()
-     (print argv)
      (print "Usage: " (car (argv)) " [options...]")
      (newline)
      (print (args:usage opts))))

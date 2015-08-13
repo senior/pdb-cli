@@ -1,13 +1,5 @@
-(use args)
-(use data-structures)
-(use ports)
-(use http-client)
-(use intarweb uri-common)
-(use medea)
-(use pathname-expand)
-(use openssl)
-(use section-combinators)
-(use srfi-13)
+(use args data-structures ports http-client intarweb uri-common
+     medea pathname-expand openssl section-combinators srfi-13)
 
 (include "common")
 
@@ -186,7 +178,6 @@
 (define (usage)
  (with-output-to-port (current-error-port)
    (lambda ()
-     (print argv)
      (print "Usage: " (car (argv)) " [options...]")
      (newline)
      (print (args:usage opts))))
