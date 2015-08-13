@@ -7,11 +7,14 @@
 (use snowtar)
 (use z3)
 
+(include "common")
+
 (define (command-metadata? tar-rec)
   (string=? "puppetdb-bak/export-metadata.json" (tar-rec-name tar-rec)))
 
-(define (import-archive archive-filename command-versions)
-  (with-input-from-request "http://localhost:8080/pdb/admin/v1/archive"
+(define (import-archive conn-info archive-filename command-versions)
+  (maybe-set-ssl-context conn-info)
+  (with-input-from-request (archive-uri (hash-table-ref conn-info 'root_url))
                            `(("command_versions" . ,command-versions)
                              ("archive" file: ,archive-filename
                               headers: ((content-type application/octet-stream))))
@@ -27,15 +30,18 @@
              (cdr (assoc "command_versions" (vector->list (json-read (current-input-port)))))
              (current-output-port))))))))
 
-(define (import-file file)
-  (print "importing file " file)
-  (import-archive file (extract-command-versions file)))
+(define (import-file conn-info cmd-args)
+  (let ((file (acdr 'infile cmd-args)))
+    (print "importing file " file)
+    (import-archive conn-info file (extract-command-versions file))))
 
 (define opts
   (list (args:make-option (i infile)
                           #:required
-                          "Path the the PuppetDB exported archive"
-                          (import-file arg))
+                          "Path the the PuppetDB exported archive")
+        (args:make-option (a alias)
+                          (required: "ALIAS")
+                          "Alias for the PuppetDB instance in ~/.pdbrc, uses \"default\" if not specified")
         (args:make-option (h help)
                           #:none
                           "Display this text"
@@ -51,4 +57,5 @@
  (exit 1))
 
 (define (main args)
-  (args:parse args opts))
+  (let ((cmd-args (args:parse args opts)))
+    (import-file (get-default-conn-info cmd-args) cmd-args)))
