@@ -12,7 +12,7 @@ to connect to PuppetDB. Non-SSL connections work as
 well. Import/Export worked on a previous prototype, still needs to be
 added to the current one. Other endpoints also need to be
 added. Likely nodes.rkt will switch to something more general and be a
-git style subcommand, i.e. ~pdb nodes ...~.
+git style subcommand, i.e. `pdb nodes ...`.
 
 # Config
 
@@ -58,12 +58,12 @@ To build a standalone copy of pdb-cli run:
 
 ```
 $ raco exe nodes.rkt
-...
+```
 
 With this you can run the same code as the racket invocation above:
 
 ```
-$ ./nodes -q "[\"~\",\"certname\",\".*\"]"
+$./nodes -q "[\"~\",\"certname\",\".*\"]"
 ```
 
 This creates a standalone binary, but to distribute it, you need the
@@ -74,7 +74,7 @@ created with the following command
 $ raco distribute nodes-dist nodes
 ```
 
-This will create a new ~nodes-dist~ directory and put the nodes binary
+This will create a new `nodes-dist` directory and put the nodes binary
 along with the needed supporting libs in that directory. That
 directory can be zipped up and ran on another system without
 installing Racket. This has been tested on OS X (Yosemite), Debian 7
